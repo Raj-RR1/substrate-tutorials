@@ -40,7 +40,7 @@ pub mod pallet {
 	pub(super) type Asset<T: Config> =
 		StorageMap<_, Blake2_128Concat, AssetId, AssetDetails<T::AccountId>>;
 
-	#[pallet::storage]
+	#[pallet::storage]  //This is an attribute macro
 	#[pallet::getter(fn account)]
 	/// The holdings of a specific account for a specific asset.
 	pub(super) type Account<T: Config> = StorageDoubleMap<
@@ -148,6 +148,10 @@ pub mod pallet {
 			// - Insert this metadata in the Metadata storage, under the asset_id key.
 			// - Deposit a `MetadataSet` event.
 
+			let metadata=AssetMetadata::new(name.clone(), symbol.clone());
+			Metadata::<T>::insert(asset_id, metadata);
+			Self::deposit_event(Event::MetadataSet { asset_id: asset_id, name: name, symbol: symbol });
+
 			Ok(())
 		}
 
@@ -162,14 +166,20 @@ pub mod pallet {
 			// - Ensure the extrinsic origin is a signed transaction.
 			// - Ensure the caller is the asset owner.
 
+			let origin = ensure_signed(origin)?;
+			Self::ensure_is_owner(asset_id,origin)?;
+
 			let mut minted_amount = 0;
+
+			let mut total_supply = 0;
 
 			Asset::<T>::try_mutate(asset_id, |maybe_details| -> DispatchResult {
 				let details = maybe_details.as_mut().ok_or(Error::<T>::UnknownAssetId)?;
 
-				let old_supply = details.supply;
-				details.supply = details.supply.saturating_add(amount);
-				minted_amount = details.supply - old_supply;
+				let old_supply = details.supply; //0, u128::MAX-50
+				details.supply = details.supply.saturating_add(amount);//u128::MAX-50, u128::MAX
+				total_supply=details.supply; //u128::MAX-50, u128::MAX
+				minted_amount = details.supply - old_supply;//u128::MAX-50
 
 				Ok(())
 			})?;
@@ -179,6 +189,7 @@ pub mod pallet {
 			});
 
 			// TODO: Deposit a `Minted` event.
+			Self::deposit_event(Event::Minted { asset_id: asset_id, owner: to, total_supply: total_supply });
 
 			Ok(())
 		}
