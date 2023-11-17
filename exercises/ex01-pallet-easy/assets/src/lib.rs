@@ -241,8 +241,25 @@ pub mod pallet {
 		) -> DispatchResult {
 			// TODO:
 			// - Ensure the extrinsic origin is a signed transaction.
+			let origin = ensure_signed(origin)?;
+
+			ensure!(Self::asset(0).is_some(),Error::<T>::UnknownAssetId);
 			// - Mutate both account balances.
+
+			let mut amount_transferred=0;
+
+			Account::<T>::mutate(asset_id, origin.clone(),|balance|{
+             let old_balance = *balance;
+				*balance=balance.saturating_sub(amount);
+				amount_transferred = old_balance - *balance;
+			});
+
+			Account::<T>::mutate(asset_id, to.clone(), |balance|{
+                *balance+=amount_transferred;
+			});
+
 			// - Emit a `Transferred` event.
+			Self::deposit_event(Event::Transferred { asset_id: asset_id, from: origin, to: to, amount: amount });
 
 			Ok(())
 		}
