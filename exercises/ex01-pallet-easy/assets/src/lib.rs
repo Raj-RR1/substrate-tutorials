@@ -13,8 +13,9 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use frame_support::pallet_prelude::*;
+	use frame_support::pallet_prelude::{*, DispatchResult};
 	use frame_system::pallet_prelude::*;
+
 
 	/// Configure the pallet by specifying the parameters and types on which it depends.
 	#[pallet::config]
@@ -198,9 +199,35 @@ pub mod pallet {
 		pub fn burn(origin: OriginFor<T>, asset_id: AssetId, amount: u128) -> DispatchResult {
 			// TODO:
 			// - Ensure the extrinsic origin is a signed transaction.
+			    let origin=ensure_signed(origin)?;// The associated type AccoutnId defined by Config trait for generic type T.
 			// - Mutate the total supply.
+			let mut total_supply=0;
+			//let mut burned_amount = 0;
+
+			Asset::<T>::try_mutate(asset_id, |maybe_details|-> DispatchResult{
+              let details = maybe_details.as_mut().ok_or(Error::<T>::UnknownAssetId)?;
+			 // details.supply=details.supply-amount;//200-101
+			 
+			Account::<T>::mutate(asset_id, origin.clone(), |balance|{
+				if *balance<amount {
+					details.supply=details.supply-*balance;//100
+					*balance-=*balance;
+				}
+				else {
+					details.supply-=amount;
+					*balance-=amount;
+				}
+			//balance.saturating_sub(amount)
+			}); 
+			  total_supply=details.supply;//99
+			  Ok(())
+			})?;
+
 			// - Mutate the account balance.
+
+
 			// - Emit a `Burned` event.
+			Self::deposit_event(Event::Burned { asset_id: asset_id, owner: origin, total_supply: total_supply });
 
 			Ok(())
 		}
