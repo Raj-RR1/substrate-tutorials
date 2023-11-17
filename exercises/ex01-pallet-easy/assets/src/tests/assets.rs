@@ -278,16 +278,16 @@ mod burn {
 			assert_ok!(Assets::create(Origin::signed(ALICE)));
 
 			let mint_amount = 100;
-			let burn_amount = mint_amount + 1;
-			assert_ok!(Assets::mint(Origin::signed(ALICE), 0, mint_amount, ALICE));
-			assert_ok!(Assets::mint(Origin::signed(ALICE), 0, mint_amount, BOB));
+			let burn_amount = mint_amount + 1;// 101
+			assert_ok!(Assets::mint(Origin::signed(ALICE), 0, mint_amount, ALICE));//100
+			assert_ok!(Assets::mint(Origin::signed(ALICE), 0, mint_amount, BOB));//100
 
-			let total_supply = Assets::asset(0).unwrap().supply;
+			let total_supply = Assets::asset(0).unwrap().supply;//200
 
 			assert_ok!(Assets::burn(Origin::signed(BOB), 0, burn_amount));
 			// Total supply and account have been reduced by mint_amount.
-			assert_eq!(Assets::asset(0).unwrap().supply, total_supply - mint_amount);
-			assert_eq!(Assets::account(0, BOB), 0);
+			assert_eq!(Assets::asset(0).unwrap().supply, total_supply - mint_amount);//200-100=100
+			assert_eq!(Assets::account(0, BOB), 0);//0
 
 			// The event was deposited
 			assert_eq!(
