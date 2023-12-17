@@ -113,8 +113,7 @@ pub mod pallet {
 
 			ensure!(Self::unique_asset(asset_id).is_some(),Error::<T>::UnknownAssetId);
 
-			let owned_nft=Self::account(asset_id, origin.clone());
-			ensure!(owned_nft>0, Error::<T>::NotOwned);
+            Self::ensure_own_some(asset_id, origin.clone())?;
 
 			let mut total_supply=0;
 
@@ -136,7 +135,7 @@ pub mod pallet {
 				total_supply=details.supply;
 
 				Ok(())
-			});
+			})?;
            
 		   Self::deposit_event(Event::Burned { asset_id: asset_id, owner: origin, total_supply: total_supply });
 
@@ -154,9 +153,7 @@ pub mod pallet {
 			let origin = ensure_signed(origin)?;
 
 			ensure!(Self::unique_asset(asset_id).is_some(),Error::<T>::UnknownAssetId);
-
-			let owned_asset=Self::account(asset_id,origin.clone());
-			ensure!(owned_asset>0,Error::<T>::NotOwned);
+             Self::ensure_own_some(asset_id, origin.clone())?;
 
 
 			let mut nfts_transferred=0;
@@ -173,6 +170,16 @@ pub mod pallet {
 
 			Self::deposit_event(Event::Transferred { asset_id: asset_id, from: origin, to: to, amount: nfts_transferred });
 
+			Ok(())
+		}
+	}
+
+	impl <T:Config> Pallet<T> {
+		
+		fn ensure_own_some(asset_id:UniqueAssetId, account: T::AccountId) -> Result<(),Error<T>>{
+
+			let owned_asset=Self::account(asset_id,account);
+			ensure!(owned_asset>0,Error::<T>::NotOwned);
 			Ok(())
 		}
 	}
