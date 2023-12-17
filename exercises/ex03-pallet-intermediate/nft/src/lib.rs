@@ -108,6 +108,38 @@ pub mod pallet {
 
 		#[pallet::weight(0)]
 		pub fn burn(origin: OriginFor<T>, asset_id: UniqueAssetId, amount: u128) -> DispatchResult {
+
+			let origin = ensure_signed(origin)?;
+
+			ensure!(Self::unique_asset(asset_id).is_some(),Error::<T>::UnknownAssetId);
+
+			let owned_nft=Self::account(asset_id, origin.clone());
+			ensure!(owned_nft>0, Error::<T>::NotOwned);
+
+			let mut total_supply=0;
+
+			UniqueAsset::<T>::try_mutate(asset_id, |unique_asset_details|-> DispatchResult{
+
+				let details = unique_asset_details.as_mut().ok_or(Error::<T>::UnknownAssetId)?;
+
+				let mut burned_assets=0;
+
+				Account::<T>::mutate(asset_id, origin.clone(), |balance|{
+					let old_balance=*balance;
+
+					*balance = balance.saturating_sub(amount);
+                    burned_assets = old_balance-*balance;
+                   
+				});
+
+				details.supply-=burned_assets;
+				total_supply=details.supply;
+
+				Ok(())
+			});
+           
+		   Self::deposit_event(Event::Burned { asset_id: asset_id, owner: origin, total_supply: total_supply });
+
 			Ok(())
 		}
 
