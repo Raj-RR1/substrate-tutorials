@@ -94,6 +94,15 @@ pub mod pallet {
 			metadata: BoundedVec<u8, T::MaxLength>,
 			supply: u128,
 		) -> DispatchResult {
+
+			let origin = ensure_signed(origin)?;
+			ensure!(supply>0,Error::<T>::NoSupply);
+			let id = Self::nonce();
+			let details = UniqueAssetDetails::new(origin.clone(), metadata, supply);
+			UniqueAsset::<T>::insert(id, details);
+			Account::<T>::insert(id, origin.clone(), supply);
+			Nonce::<T>::set(id+1);
+			Self::deposit_event(Event::Created { creator: origin, asset_id: id });
 			Ok(())
 		}
 
@@ -109,7 +118,32 @@ pub mod pallet {
 			amount: u128,
 			to: T::AccountId,
 		) -> DispatchResult {
+
+			let origin = ensure_signed(origin)?;
+
+			ensure!(Self::unique_asset(asset_id).is_some(),Error::<T>::UnknownAssetId);
+
+			let owned_asset=Self::account(asset_id,origin.clone());
+			ensure!(owned_asset>0,Error::<T>::NotOwned);
+
+
+			let mut nfts_transferred=0;
+
+			Account::<T>::mutate(asset_id, origin.clone(), |supply|{
+				let old_supply=*supply;
+				*supply=old_supply.saturating_sub(amount);
+				nfts_transferred=old_supply-*supply;
+			});
+
+			Account::<T>::mutate(asset_id, to.clone(), |balance|{
+              *balance=*balance+nfts_transferred;
+			});
+
+			Self::deposit_event(Event::Transferred { asset_id: asset_id, from: origin, to: to, amount: nfts_transferred });
+
 			Ok(())
 		}
 	}
+
+
 }
