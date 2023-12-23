@@ -71,6 +71,7 @@ pub mod pallet {
 			// TODO
 			// We want to compensate this imbalance by increasing `benefeciary` balance by the
 			// corresponding amount
+		T::Currency::resolve_into_existing(&beneficiary,amount_to_distribute).map_err(|_|Error::<T>::AccountDoesNotExist)?;
 
 			Ok(())
 		}
