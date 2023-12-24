@@ -21,6 +21,8 @@ pub type NegativeBalanceOf<T> = <<T as Config>::Currency as Currency<
 
 #[frame_support::pallet]
 pub mod pallet {
+	use core::ops::Mul;
+
 	use super::*;
 	use frame_support::{
 		pallet_prelude::*,
@@ -71,7 +73,8 @@ pub mod pallet {
 			// TODO
 			// We want to compensate this imbalance by increasing `benefeciary` balance by the
 			// corresponding amount
-		T::Currency::resolve_into_existing(&beneficiary,amount_to_distribute).map_err(|_|Error::<T>::AccountDoesNotExist)?;
+			T::Currency::resolve_into_existing(&beneficiary, amount_to_distribute)
+				.map_err(|_| Error::<T>::AccountDoesNotExist)?;
 
 			Ok(())
 		}
@@ -85,10 +88,20 @@ pub mod pallet {
 			ensure_root(origin)?;
 
 			// Todo: slash target
+			let (negative_imbalance, _) = T::Currency::slash(&target, amount);
 			// Todo: give 1/3 of the slashed amount to the treasury and burn the rest
 			// Hint: use the `ration` method
+			let (to_treasury, to_burn) = negative_imbalance.ration(1, 2);
+
 			// Hint: TreasuryAccount is defined as on l35 as a Config constant
 
+			T::Currency::resolve_creating(&T::TreasuryAccount::get(), to_treasury);
+			let amount_to_burn = to_burn.peek();
+			let burned = T::Currency::burn(amount_to_burn);
+			burned
+				.offset(to_burn)
+				.try_drop()
+				.map_err(|_| Error::<T>::ImbalanceOffsetFailed)?;
 			Ok(())
 		}
 
@@ -107,6 +120,31 @@ pub mod pallet {
 			// and give it all to beneficiary
 			// except for the TreasuryFlatCut amount, that goes to the treasury for each sacked
 			// account Hint: there is a `split` method implemented on imbalances
+
+			let n_accounts = sacked_accounts.len();
+			let amount_collected = sacked_accounts.into_iter().try_fold(
+				NegativeBalanceOf::<T>::zero(),
+				|acc, account| {
+					let free_balance = T::Currency::free_balance(&account);
+					T::Currency::withdraw(
+						&account,
+						free_balance - T::Currency::minimum_balance(),
+						WithdrawReasons::TRANSFER,
+						ExistenceRequirement::KeepAlive,
+					)
+					.map(|v| acc.merge(v))
+				},
+			)?;
+
+			let amount_to_treasury = T::TreasuryFlatCut::get()
+				.checked_mul(&n_accounts.checked_into().ok_or(Error::<T>::Overflow)?)
+				.ok_or(Error::<T>::Overflow)?;
+
+			let (to_treasury, to_beneficiary) = amount_collected.split(amount_to_treasury);
+
+			T::Currency::resolve_creating(&T::TreasuryAccount::get(), to_treasury);
+			T::Currency::resolve_into_existing(&beneficiary, to_beneficiary)
+				.map_err(|_| Error::<T>::AccountDoesNotExist)?;
 
 			Ok(())
 		}
